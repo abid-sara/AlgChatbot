@@ -1,0 +1,34 @@
+{
+  "en": {
+    "welcome": "Welcome to Algérie Télécom Virtual Assistant",
+    "introduction": "I'm here to assist you with your enquiries and services",
+    "services": [
+      "Track your phone consumption",
+      "View your telephon bill",
+      "Check your internet subscription",
+      "Access your account details"
+    ]
+  },
+
+  "fr": {
+    "welcome": "Bienvenue sur l'Assistant Virtuel d'Algérie Télécom",
+    "introduction": "Je suis là pour répondre à vos questions et vous aider avec vos services",
+    "services": [
+      "Suivez votre consommation téléphonique",
+      "Consultez votre facture téléphonique",
+      "Vérifiez votre abonnement Internet",
+      "Accédez aux détails de votre compte"
+    ]
+  },
+
+  "ar": {
+    "welcome": "مرحبًا بك في المساعد الافتراضي لاتصالات الجزائر",
+    "introduction": "أنا هنا للإجابة على استفساراتك ومساعدتك في خدماتك",
+    "services": [
+      "تتبع استهلاكك للهاتف",
+      "عرض فاتورة هاتفك",
+      "التحقق من اشتراك الإنترنت",
+      "الوصول إلى تفاصيل حسابك"
+    ]
+  }
+}

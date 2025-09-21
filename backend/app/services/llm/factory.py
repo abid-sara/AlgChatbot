@@ -1,0 +1,28 @@
+"""Factory for creating LLM instances"""
+
+import logging
+from config.settings import LLM_PROVIDER
+
+logger = logging.getLogger("app.services.llm.factory")
+
+def create_llm():
+    """
+    Create and return the appropriate LLM based on configuration
+    
+    Returns:
+        BaseLLM: An instance of the configured LLM provider
+    """
+    # Clean the provider value to handle potential comment inclusion
+    provider_value = LLM_PROVIDER.strip()
+    
+    # Remove any comments (text after #)
+    if '#' in provider_value:
+        provider_value = provider_value.split('#')[0].strip()
+    
+    # Log for debugging
+    logger.info(f"Creating LLM with provider: '{provider_value}'")
+    
+    if provider_value.lower() == "qwen2.5":
+        from app.services.llm.qwen_provider import QwenLLM
+        return QwenLLM()
+   

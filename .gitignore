@@ -1,0 +1,13 @@
+.vite
+.env
+__pycache__
+flask_session/
+.vscode
+
+rag_vector_db.faiss
+rag_vector_db.faiss.meta
+chatbotEnv
+venv
+env
+
+
