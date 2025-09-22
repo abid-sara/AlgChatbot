@@ -139,6 +139,16 @@ Instructions for your response:
 4. If the user asks about a specific service (e.g., E-facture, Idoom ADSL, Fibre), only quote points present in the documents.
 5. If no direct answer is available, say: "This information is not available in the documentation."
 6. If the question is a continuation, ensure consistency with previous messages.
+7. Always return the final answer as **Markdown**, well formatted with:
+  - Headings (###)
+  - Bullet lists (- or *)
+  - Bold for important terms
+  - Tables when listing structured data (plans, prices, comparisons)
+8. Do NOT use inline stars `*` for bullets. Use proper Markdown syntax.
+9. Links must be valid Markdown links: [text](url).
+10. Don't start the answer with your opinion provide directly the answer relevant to question 
+11. Do NOT run words together without spaces.
+12. Make sure the response is well-structured and readable.
 
 Answer:
 """

@@ -1,6 +1,7 @@
 import json
 import logging
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, request, jsonify, Response, stream_with_context
+import time
 
 from app.services.search_service import SearchService
 from app.services.qa_service import QAService
@@ -117,36 +118,50 @@ def question_answer():
     logger.info(f"Processed query: '{processed_query}', is_continuation: {is_continuation}")
     
     # Get search results using processed query
+    t0 = time.time()
     search_results = search_service.search(processed_query, top_n, search_method=search_method)
+    print("----> Search took", time.time() - t0, "s")
     formatted_chunks = search_service.format_search_results(search_results)
     
     # Generate answer with conversation context if available
-    answer = qa_service.generate_answer(processed_query, formatted_chunks, conversation_history)
-    
-    # Add the new messages to conversation history
+    t1 = time.time()
+    answer_result = qa_service.generate_answer(processed_query, formatted_chunks, conversation_history)
+    print("----> LLM answer generation took", time.time() - t1, "s")
+    print(answer_result)
+
+    def generate():
+        try:
+            # Use the answer from the working generate_answer method
+            if answer_result and answer_result.get('status') == 'success' and answer_result.get('answer'):
+                text = answer_result['answer']
+                logger.info(f"Streaming answer: {text}")
+                
+                # Stream the answer character by character for real-time effect
+                for i, char in enumerate(text):
+                    yield f"data: {char}\n\n"
+                    time.sleep(0.01)  # Small delay for streaming effect
+                
+                yield "data: [DONE]\n\n"
+            else:
+                error_msg = answer_result.get('error', 'Unknown error') if answer_result else 'No answer generated'
+                logger.error(f"No answer in result: {answer_result}")
+                yield f"data: Error: {error_msg}\n\n"
+                yield "data: [DONE]\n\n"
+                
+        except Exception as e:
+            logger.error(f"Error during streaming: {str(e)}")
+            yield f"data: Error: {str(e)}\n\n"
+            yield "data: [DONE]\n\n"
+
+    # Add messages to conversation history only if successful
     conversation_manager.add_message(user_id, 'user', query)
-    conversation_manager.add_message(user_id, 'assistant', answer['answer'])
+    if answer_result and answer_result.get('status') == 'success' and answer_result.get('answer'):
+        conversation_manager.add_message(user_id, 'assistant', answer_result['answer'])
     
-    # Build the final response payload
-    response_payload = {
-        'query': query,
-        'processed_query': processed_query,
-        'is_continuation': is_continuation,
-        'answer': answer['answer'],
-        'status': answer['status'],
-        'context': [
-            {'text': chunk, 'score': float(score)} 
-            for chunk, score in search_results
-        ],
-        'method': search_method or search_service.search_method,
-        'conversation_history': conversation_manager.get_conversation(user_id)
-    }
+    return Response(stream_with_context(generate()), mimetype="text/event-stream")
+
+
     
-    # Return response with proper UTF-8 JSON encoding
-    return Response(
-        json.dumps(response_payload, ensure_ascii=False),
-        content_type="application/json; charset=utf-8"
-    )
 
 
 @api.route('/conversation', methods=['POST'])

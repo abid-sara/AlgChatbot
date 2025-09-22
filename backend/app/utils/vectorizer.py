@@ -216,7 +216,7 @@ class HybridVectorizer:
             logger.warning("Vectorizer hasn't been fitted with documents yet. Returning empty results.")
             return []  # Return empty list instead of raising exception
         else :
-            logger.info("Vectorizer is fitted with the documents")
+            logger.info("Using fitted vectorizer for search")
             
         # Check if we have documents to search
         if not self.chunks:

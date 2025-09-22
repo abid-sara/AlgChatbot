@@ -152,7 +152,7 @@ class SearchService:
 
             tokenized_new, preprocessed_new = [], []
             for chunk in new_chunks:
-                tokens, preprocessed = self.vectorizer.preprocess_arabic_text(chunk)
+                tokens, preprocessed = self.vectorizer.preprocess_text(chunk)
                 tokenized_new.append(tokens)
                 preprocessed_new.append(preprocessed)
 
@@ -207,7 +207,7 @@ class SearchService:
         if not self.vector_index or self.vector_index.ntotal == 0:
             return []
 
-        _, preprocessed_query = self.vectorizer.preprocess_arabic_text(query)
+        _, preprocessed_query = self.vectorizer.preprocess_text(query)
         query_embedding = self.vectorizer.get_embeddings([preprocessed_query])
         if query_embedding is None:
             return []
@@ -224,45 +224,31 @@ class SearchService:
 
     def _rerank_with_embeddings(self, query, results):
         """
-        Re-rank search results using embeddings-only similarity. Better for multi langual
-
-        Args:
-            query (str): The search query
-            results (list): List of (chunk, hybrid_score) tuples
-
-        Returns:
-            list: Re-ranked results [(chunk, rerank_score), ...]
-            
+        Re-rank search results using FAISS embeddings-only similarity.
+        Much faster than recomputing embeddings for each chunk.
         """
-        if not results:
-            return []
+        if not results or not self.vector_index or self.vector_index.ntotal == 0:
+            return results
 
         # Preprocess query
-        _, preprocessed_query = self.vectorizer.preprocess_arabic_text(query)
+        _, preprocessed_query = self.vectorizer.preprocess_text(query)
 
-        # Get embedding for query
+        # Get query embedding
         query_embedding = self.vectorizer.get_embeddings([preprocessed_query])
         if query_embedding is None or len(query_embedding) == 0:
-            return results  # fallback: return original hybrid results
+            return results
 
-        query_vec = query_embedding[0].reshape(1, -1).astype('float32')
+        query_vec = query_embedding.astype("float32")
+
+        # Search in FAISS for the top matches
+        distances, indices = self.vector_index.search(query_vec, k=len(results))
 
         reranked = []
-        for chunk, _ in results:
-            # Get chunk embedding
-            _, preprocessed_chunk = self.vectorizer.preprocess_arabic_text(chunk)
-            chunk_embedding = self.vectorizer.get_embeddings([preprocessed_chunk])
-            if chunk_embedding is None or len(chunk_embedding) == 0:
-                continue
-            
-            chunk_vec = chunk_embedding[0].reshape(1, -1).astype('float32')
+        for rank, idx in enumerate(indices[0]):
+            if idx != -1 and idx < len(self.chunks):
+                similarity = 1.0 / (1.0 + distances[0][rank])  # convert L2 to similarity
+                reranked.append((self.chunks[idx], float(similarity)))
 
-            # Cosine similarity
-            sim = float(np.dot(query_vec, chunk_vec.T) / (np.linalg.norm(query_vec) * np.linalg.norm(chunk_vec)))
-            reranked.append((chunk, sim))
-
-        # Sort by similarity (highest first)
-        reranked.sort(key=lambda x: x[1], reverse=True)
         return reranked
 
 
