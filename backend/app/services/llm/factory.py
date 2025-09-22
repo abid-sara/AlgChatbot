@@ -25,4 +25,7 @@ def create_llm():
     if provider_value.lower() == "qwen2.5":
         from app.services.llm.qwen_provider import QwenLLM
         return QwenLLM()
+    elif provider_value.lower() == "gemini":
+        from app.services.llm.gemini_provider import GeminiLLM
+        return GeminiLLM()
    

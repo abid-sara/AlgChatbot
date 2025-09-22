@@ -1,11 +1,10 @@
 import json
 import logging
 from flask import Blueprint, request, jsonify, Response
-from werkzeug.exceptions import BadRequestKeyError, RequestEntityTooLarge
 
 from app.services.search_service import SearchService
-from app.utils.docx_processor import DocxProcessor
-
+from app.services.qa_service import QAService
+from app.utils.conversation_manager import ConversationManager
 
 from config.settings import (
     EMBEDDING_MODEL, TFIDF_WEIGHT, BM25_WEIGHT, EMBEDDING_WEIGHT,
@@ -26,6 +25,8 @@ search_service = SearchService(
     search_method=DEFAULT_SEARCH_METHOD
 )
 
+qa_service = QAService()
+conversation_manager = ConversationManager()
 
 # Blueprint
 api = Blueprint('api', __name__)
@@ -68,37 +69,127 @@ def search():
         status=200
     )
 
+# ---- QA ---------
+import json
+from flask import Response
 
-# ------------------- Config -------------------
-@api.route('/config', methods=['GET'])
-def get_config():
-    return jsonify({
-        'weights': search_service.vectorizer.weights,
-        'embedding_model': EMBEDDING_MODEL,
-        'search_method': search_service.search_method,
-        'available_methods': ['hybrid', 'tfidf', 'bm25', 'embeddings']
-    }), 200
-
-@api.route('/config', methods=['POST'])
-def update_config():
+@api.route('/qa', methods=['POST'])
+def question_answer():
+    """
+    Question answering endpoint with conversation context
+    
+    Expected JSON payload:
+    {
+        "query": "question"
+        "user_id": "unique_user_id",
+        "top_n": 5,                    
+        "search_method": "hybrid",
+        "use_context": true
+    }
+    """
     data = request.json
-    if not data:
-        return jsonify({'error': 'No configuration data provided'}), 400
-
-    search_method = data.get('search_method')
-    if search_method:
-        search_service.set_search_method(search_method)
-
-    weights = data.get('weights', {})
-    if weights:
-        search_service.vectorizer.set_weights(
-            tfidf_weight=weights.get('tfidf', search_service.vectorizer.weights['tfidf']),
-            bm25_weight=weights.get('bm25', search_service.vectorizer.weights['bm25']),
-            embedding_weight=weights.get('embeddings', search_service.vectorizer.weights['embeddings'])
+    
+    if not data or 'query' not in data:
+        return Response(
+            json.dumps({'error': 'Query is required'}, ensure_ascii=False),
+            content_type="application/json; charset=utf-8",
+            status=400
         )
+    
+    query = data['query']
+    user_id = data.get('user_id', 'anonymous')
+    top_n = data.get('top_n', None)
+    search_method = data.get('search_method', None)
+    use_context = data.get('use_context', True)
+    
+    logger.info(f"QA request received for user '{user_id}', query: '{query}', use_context: {use_context}")
+    
+    # Get conversation history if needed
+    conversation_history = None
+    if use_context:
+        conversation_history = conversation_manager.get_conversation(user_id)
+    
+    # Pre-process query (no more security checks)
+    query_analysis = qa_service.preprocess_query(query, conversation_history) or {}
+    processed_query = query_analysis.get("processed_query", query)
+    is_continuation = query_analysis.get("is_continuation", False)
+    
+    logger.info(f"Processed query: '{processed_query}', is_continuation: {is_continuation}")
+    
+    # Get search results using processed query
+    search_results = search_service.search(processed_query, top_n, search_method=search_method)
+    formatted_chunks = search_service.format_search_results(search_results)
+    
+    # Generate answer with conversation context if available
+    answer = qa_service.generate_answer(processed_query, formatted_chunks, conversation_history)
+    
+    # Add the new messages to conversation history
+    conversation_manager.add_message(user_id, 'user', query)
+    conversation_manager.add_message(user_id, 'assistant', answer['answer'])
+    
+    # Build the final response payload
+    response_payload = {
+        'query': query,
+        'processed_query': processed_query,
+        'is_continuation': is_continuation,
+        'answer': answer['answer'],
+        'status': answer['status'],
+        'context': [
+            {'text': chunk, 'score': float(score)} 
+            for chunk, score in search_results
+        ],
+        'method': search_method or search_service.search_method,
+        'conversation_history': conversation_manager.get_conversation(user_id)
+    }
+    
+    # Return response with proper UTF-8 JSON encoding
+    return Response(
+        json.dumps(response_payload, ensure_ascii=False),
+        content_type="application/json; charset=utf-8"
+    )
+
+
+@api.route('/conversation', methods=['POST'])
+def update_conversation():
+    """
+    Update the conversation cache for a user session.
+    
+    Expected JSON payload:
+    {
+        "user_id": "unique_user_id",
+        "role": "user/assistant",
+        "content": "message content"
+    }
+    """
+    data = request.json
+    if not data or 'user_id' not in data or 'role' not in data or 'content' not in data:
+        return jsonify({'error': 'Invalid payload'}), 400
+
+    user_id = data['user_id']
+    role = data['role']
+    content = data['content']
+
+    # Add message to conversation manager
+    conversation_manager.add_message(user_id, role, content)
 
     return jsonify({
-        'weights': search_service.vectorizer.weights,
-        'search_method': search_service.search_method,
-        'status': 'updated'
+        'status': 'success', 
+        'conversation': conversation_manager.get_conversation(user_id)
     }), 200
+
+@api.route('/conversation/<user_id>', methods=['GET'])
+def get_conversation(user_id):
+    """
+    Retrieve the conversation cache for a user session.
+    """
+    return jsonify({
+        'conversation': conversation_manager.get_conversation(user_id)
+    }), 200
+
+@api.route('/conversation/<user_id>', methods=['DELETE'])
+def clear_conversation(user_id):
+    """
+    Clear the conversation history for a user.
+    """
+    conversation_manager.clear_conversation(user_id)
+    return jsonify({'status': 'success', 'message': 'Conversation cleared'}), 200

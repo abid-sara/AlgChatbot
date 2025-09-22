@@ -6,7 +6,10 @@ envpath = find_dotenv()
 load_dotenv(envpath)
 
 # API Configuration
-MODEL_NAME = os.getenv('MODEL_NAME', '')
+API_KEY = os.environ.get('GEMINI_API_KEY', '')
+MODEL_NAME = os.getenv('MODEL_NAME', 'gemini-2.0-flash')
+GEMINI_API_KEY = os.environ.get('GEMINI_API_KEY', '')
+GEMINI_MODEL_NAME="gemini-2.0-flash"
 
 # Search Configuration
 TOP_N_RESULTS = int(os.getenv('TOP_N_RESULTS', 10))
