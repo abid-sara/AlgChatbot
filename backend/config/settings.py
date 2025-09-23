@@ -25,7 +25,7 @@ DEFAULT_SEARCH_METHOD = os.getenv('DEFAULT_SEARCH_METHOD', 'hybrid')
 TFIDF_WEIGHT = float(os.getenv('TFIDF_WEIGHT', 0.3))
 BM25_WEIGHT = float(os.getenv('BM25_WEIGHT', 0.3))
 EMBEDDING_WEIGHT = float(os.getenv('EMBEDDING_WEIGHT', 0.4))
-EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'jinaai/jina-embeddings-v3')
+EMBEDDING_MODEL = os.getenv('EMBEDDING_MODEL', 'intfloat/multilingual-e5-base')
 
 # Flask Configuration
 DEBUG = os.getenv('DEBUG', 'False').lower() == 'true'

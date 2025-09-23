@@ -14,7 +14,7 @@ logging.basicConfig(level=logging.INFO,
 logger = logging.getLogger(__name__)
 
 class SearchService:
-    def __init__(self, embedding_model="jinaai/jina-embeddings-v3",
+    def __init__(self, embedding_model="intfloat/multilingual-e5-base",
                  tfidf_weight=0.3, bm25_weight=0.3, embedding_weight=0.4,
                  search_method=None):
        
@@ -159,7 +159,7 @@ class SearchService:
             self.vectorizer.tokenized_chunks.extend(tokenized_new)
             self.vectorizer.preprocessed_chunks.extend(preprocessed_new)
 
-            new_embeddings = self.vectorizer.get_embeddings(preprocessed_new)
+            new_embeddings = self.vectorizer.get_embeddings([f"passage: {p}" for p in preprocessed_new] )
             if new_embeddings is not None:
                 self.vector_index.add(np.array(new_embeddings).astype('float32'))
                 self.vectorizer.embedding_vectors = np.vstack([
@@ -208,7 +208,7 @@ class SearchService:
             return []
 
         _, preprocessed_query = self.vectorizer.preprocess_text(query)
-        query_embedding = self.vectorizer.get_embeddings([preprocessed_query])
+        query_embedding = self.vectorizer.get_embeddings([f"query: {preprocessed_query}"])
         if query_embedding is None:
             return []
 
@@ -234,7 +234,7 @@ class SearchService:
         _, preprocessed_query = self.vectorizer.preprocess_text(query)
 
         # Get query embedding
-        query_embedding = self.vectorizer.get_embeddings([preprocessed_query])
+        query_embedding = self.vectorizer.get_embeddings([f"query: {preprocessed_query}"])
         if query_embedding is None or len(query_embedding) == 0:
             return results
 

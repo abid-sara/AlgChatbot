@@ -105,63 +105,50 @@ def question_answer():
     
     logger.info(f"QA request received for user '{user_id}', query: '{query}', use_context: {use_context}")
     
-    # Get conversation history if needed
-    conversation_history = None
-    if use_context:
-        conversation_history = conversation_manager.get_conversation(user_id)
+
+    conversation_history = conversation_manager.get_conversation(user_id) if use_context else None
     
-    # Pre-process query (no more security checks)
+    # detect continuation 
     query_analysis = qa_service.preprocess_query(query, conversation_history) or {}
     processed_query = query_analysis.get("processed_query", query)
     is_continuation = query_analysis.get("is_continuation", False)
     
-    logger.info(f"Processed query: '{processed_query}', is_continuation: {is_continuation}")
+    # build retrieval query to have last context query and current query
+    retrieval_query = processed_query
+    if is_continuation and conversation_history:
+        last_user_msgs = [msg["content"] for msg in conversation_history if msg["role"] == "user"]
+        if last_user_msgs:
+            retrieval_query = f"In the context of: {last_user_msgs[-3:]}, question: {processed_query}"
     
-    # Get search results using processed query
+    logger.info(f"Processed query: '{processed_query}', is_continuation: {is_continuation}")
+    logger.info(f"Retrieval query: '{retrieval_query}'")
+    
+    
     t0 = time.time()
-    search_results = search_service.search(processed_query, top_n, search_method=search_method)
+    search_results = search_service.search(retrieval_query, top_n, search_method=search_method)
     print("----> Search took", time.time() - t0, "s")
     formatted_chunks = search_service.format_search_results(search_results)
     
-    # Generate answer with conversation context if available
+    # generate answer with original processed query
     t1 = time.time()
     answer_result = qa_service.generate_answer(processed_query, formatted_chunks, conversation_history)
     print("----> LLM answer generation took", time.time() - t1, "s")
     print(answer_result)
 
-    def generate():
-        try:
-            # Use the answer from the working generate_answer method
-            if answer_result and answer_result.get('status') == 'success' and answer_result.get('answer'):
-                text = answer_result['answer']
-                logger.info(f"Streaming answer: {text}")
-                
-                # Stream the answer character by character for real-time effect
-                for i, char in enumerate(text):
-                    yield f"data: {char}\n\n"
-                    time.sleep(0.01)  # Small delay for streaming effect
-                
-                yield "data: [DONE]\n\n"
-            else:
-                error_msg = answer_result.get('error', 'Unknown error') if answer_result else 'No answer generated'
-                logger.error(f"No answer in result: {answer_result}")
-                yield f"data: Error: {error_msg}\n\n"
-                yield "data: [DONE]\n\n"
-                
-        except Exception as e:
-            logger.error(f"Error during streaming: {str(e)}")
-            yield f"data: Error: {str(e)}\n\n"
-            yield "data: [DONE]\n\n"
-
-    # Add messages to conversation history only if successful
+    #update conversation history
     conversation_manager.add_message(user_id, 'user', query)
     if answer_result and answer_result.get('status') == 'success' and answer_result.get('answer'):
         conversation_manager.add_message(user_id, 'assistant', answer_result['answer'])
-    
-    return Response(stream_with_context(generate()), mimetype="text/event-stream")
-
-
-    
+        return jsonify({
+            'status': 'success',
+            'answer': answer_result['answer'],
+        }), 200
+    else:
+        error_msg = answer_result.get('error', 'Unknown error') if answer_result else 'No answer generated'
+        return jsonify({
+            'status': 'error',
+            'error': error_msg,
+        }), 500
 
 
 @api.route('/conversation', methods=['POST'])

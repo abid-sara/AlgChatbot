@@ -96,7 +96,7 @@ processed_query: [the clarified or reformulated question if needed, otherwise re
         except Exception as e:
             print(f"Error generating answer: {e}")
             return {
-                'answer': "⚠️ Sorry, an error occurred while processing your request.",
+                'answer': "Sorry, an error occurred while processing your request.",
                 'status': 'error',
                 'error': str(e)
             }
@@ -114,7 +114,7 @@ processed_query: [the clarified or reformulated question if needed, otherwise re
 
         continuation_note = ""
         if is_continuation:
-            continuation_note = "⚠️ This question is a continuation. Keep the previous context in mind.\n\n"
+            continuation_note = "This question is a continuation. Keep the previous context in mind.\n\n"
 
         docs_context = ""
         for i, chunk in enumerate(context_chunks, 1):
@@ -145,10 +145,9 @@ Instructions for your response:
   - Bold for important terms
   - Tables when listing structured data (plans, prices, comparisons)
 8. Do NOT use inline stars `*` for bullets. Use proper Markdown syntax.
-9. Links must be valid Markdown links: [text](url).
+9. Links must be valid Markdown links: [text](url) that can lead to the corresponding pzge.
 10. Don't start the answer with your opinion provide directly the answer relevant to question 
-11. Do NOT run words together without spaces.
-12. Make sure the response is well-structured and readable.
+
 
 Answer:
 """

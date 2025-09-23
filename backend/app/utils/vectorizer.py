@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 class HybridVectorizer:
-    def __init__(self, embedding_model="jinaai/jina-embeddings-v3"):
+    def __init__(self, embedding_model="intfloat/multilingual-e5-base"):
         """
         Initialize the hybrid vectorizer with TF-IDF, BM25, and Hugging Face embeddings
         """
@@ -124,6 +124,7 @@ class HybridVectorizer:
 
                 outputs = self.model(**encoded)
                 embeddings = self._mean_pooling(outputs, encoded['attention_mask'])
+                embeddings = torch.nn.functional.normalize(embeddings, p=2, dim=1)
                 all_embeddings.extend(embeddings.cpu().numpy())
 
         return np.array(all_embeddings)
@@ -168,7 +169,7 @@ class HybridVectorizer:
             # Generate embeddings
             if self.model is not None:
                 logger.info("Generating embeddings for document chunks...")
-                self.embedding_vectors = self.get_embeddings(preprocessed_chunks)
+                self.embedding_vectors = self.get_embeddings([f"passage: {p}" for p in preprocessed_chunks])
                 logger.info(f"Generated embeddings with shape: {self.embedding_vectors.shape}")
             else:
                 logger.warning("Embedding model not available, will rely on TF-IDF and BM25 only")
@@ -287,21 +288,18 @@ class HybridVectorizer:
         
         try:
             # Generate query embedding
-            query_embedding = self.get_embeddings([preprocessed_query])[0]
+            query_embedding = self.get_embeddings([f"query:{preprocessed_query}"])[0]
             
-            # Calculate cosine similarity
             similarity = torch.nn.functional.cosine_similarity(
                 torch.tensor(query_embedding).unsqueeze(0),
                 torch.tensor(self.embedding_vectors),
                 dim=1
             ).numpy()
-            
-            # Combine chunks with scores and sort
+
             chunk_score_pairs = list(zip(self.chunks, similarity.tolist()))
             ranked_chunks = sorted(chunk_score_pairs, key=lambda x: x[1], reverse=True)
-            
-            # Return top N results
             return ranked_chunks[:top_n]
+    
         except Exception as e:
             logger.error(f"Error in embedding search: {e}")
             return self._tfidf_search(preprocessed_query, top_n)  # Fallback
@@ -339,7 +337,7 @@ class HybridVectorizer:
             # --- Embedding similarity scoring ---
             embedding_scores = np.zeros(len(self.chunks))
             if self.model is not None and self.embedding_vectors is not None:
-                query_embedding = self.get_embeddings([preprocessed_query])[0]
+                query_embedding = self.get_embeddings([f"query: {preprocessed_query}"])[0]
                 
                 # Calculate cosine similarity between query and document embeddings
                 similarity = torch.nn.functional.cosine_similarity(
