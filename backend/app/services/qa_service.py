@@ -8,7 +8,6 @@ class QAService:
     def preprocess_query(self, query, conversation_history=None):
         """
         Pre-process the query: only check if it's a continuation based on history.
-        No security filtering anymore.
         """
         if not conversation_history or len(conversation_history) == 0:
             return {
@@ -76,30 +75,91 @@ processed_query: [the clarified or reformulated question if needed, otherwise re
         return prompt
 
     def generate_answer(self, query, context_chunks, conversation_history=None):
-        """
-        Generate an answer based on query, retrieved context chunks, and history.
-        """
         query_info = self.preprocess_query(query, conversation_history)
-
         processed_query = query_info["processed_query"]
         is_continuation = query_info["is_continuation"]
 
-        prompt = self._build_prompt(processed_query, context_chunks, conversation_history, is_continuation)
+        prompt = self._build_prompt(
+            processed_query, context_chunks, conversation_history, is_continuation
+        )
 
         try:
             response = self.model.generate_content(prompt)
+
+            # Gemini returns .text ; OpenAI returns .choices
+            if hasattr(response, "text"):
+                answer = response.text
+            else:
+                answer = response.choices[0].message.content
+
             return {
-                'answer': response.text.strip(),
-                'status': 'success',
-                'is_continuation': is_continuation
+                "answer": answer.strip(),
+                "status": "success",
+                "is_continuation": is_continuation,
             }
+
         except Exception as e:
-            print(f"Error generating answer: {e}")
             return {
-                'answer': "Sorry, an error occurred while processing your request.",
-                'status': 'error',
-                'error': str(e)
+                "answer": "Sorry, an error occurred while processing your request.",
+                "status": "error",
+                "error": str(e),
             }
+
+
+    def stream_answer_tokens(self, query, context_chunks, conversation_history=None):
+        """
+        Unified streaming generator for Gemini, Qwen.
+        """
+        query_info = self.preprocess_query(query, conversation_history)
+        processed_query = query_info["processed_query"]
+        is_continuation = query_info["is_continuation"]
+
+        prompt = self._build_prompt(
+            processed_query, context_chunks, conversation_history, is_continuation
+        )
+
+        collected = ""
+        try:
+            stream = self.model.stream_content(prompt)
+
+            # ---- Gemini streaming ----
+            if stream.__class__.__name__ == "Generator":
+                for chunk in stream:
+                    if hasattr(chunk, "candidates"):
+                        c = chunk.candidates[0]
+                        if hasattr(c, "content") and c.content.parts:
+                            text = c.content.parts[0].text
+                            if text:
+                                collected += text
+                                yield text
+            else:
+                for chunk in stream:
+                    if chunk.candidates and chunk.candidates[0].content.parts:
+                        yield chunk.candidates[0].content.parts[0].text
+
+        except Exception as e:
+             # Streaming failed (e.g., Gemini 503) switching back to block 
+            print(f"[Stream error] {e} — switching to fallback single call")
+            try:
+               
+                response = self.model.generate_content(prompt)
+                full_answer = getattr(response, "text", None) or \
+                              response.choices[0].message.content
+                
+                if full_answer:
+                    # Remove already-streamed part if the model restarted the answer
+                    if full_answer.startswith(collected[:50]):  
+                        remainder = full_answer[len(collected):]
+                    else:
+                        remainder = "\n\n" + full_answer
+
+                    yield "\n\n" + remainder.strip()
+                
+                else:
+                    yield "\n Incomplete response, the service is interrupted."
+            except Exception as e2:
+                yield f"\nImpossible to get back the end of the response ({e2})."
+
 
     def _build_prompt(self, query, context_chunks, conversation_history=None, is_continuation=False):
         """
@@ -133,7 +193,7 @@ Context from official Algeria Telecom documents:
 {docs_context}
 
 Instructions for your response:
-1. Respond in the same language as the question (Arabic, French, or English).
+1. Respond in the same language as the question (Arabic, French, or English) don't use any other language.
 2. Provide clear, concise, and easy-to-understand answers.
 3. Use a courteous and professional customer service tone.
 4. If the user asks about a specific service (e.g., E-facture, Idoom ADSL, Fibre), only quote points present in the documents.
@@ -145,8 +205,10 @@ Instructions for your response:
   - Bold for important terms
   - Tables when listing structured data (plans, prices, comparisons)
 8. Do NOT use inline stars `*` for bullets. Use proper Markdown syntax.
-9. Links must be valid Markdown links: [text](url) that can lead to the corresponding pzge.
-10. Don't start the answer with your opinion provide directly the answer relevant to question 
+9. Links must be valid Markdown links: [text](url).
+10. Do NOT start your response with phrases like "Yes, I will answer your question based on the documentation."
+11. Do not mention document numbers or file names in the answer example don't write: MY IDOOM: A mobile application from Algérie Télécom available on Google Play, App Store, and Huawei AppGallery, integrating several services ([Document 14]) write only the phrase MY IDOOM: A mobile application from Algérie Télécom available on Google Play, App Store, and Huawei AppGallery, integrating several services.
+12. Provide the answer directly, without unnecessary introductions or meta-comments.
 
 
 Answer:

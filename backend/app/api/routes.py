@@ -129,26 +129,24 @@ def question_answer():
     print("----> Search took", time.time() - t0, "s")
     formatted_chunks = search_service.format_search_results(search_results)
     
-    # generate answer with original processed query
-    t1 = time.time()
-    answer_result = qa_service.generate_answer(processed_query, formatted_chunks, conversation_history)
-    print("----> LLM answer generation took", time.time() - t1, "s")
-    print(answer_result)
+    # streaming the answer with original processed query
+    def generate():
+        try:
+            yield f"data: {json.dumps({'event': 'start'})}\n\n"
 
-    #update conversation history
-    conversation_manager.add_message(user_id, 'user', query)
-    if answer_result and answer_result.get('status') == 'success' and answer_result.get('answer'):
-        conversation_manager.add_message(user_id, 'assistant', answer_result['answer'])
-        return jsonify({
-            'status': 'success',
-            'answer': answer_result['answer'],
-        }), 200
-    else:
-        error_msg = answer_result.get('error', 'Unknown error') if answer_result else 'No answer generated'
-        return jsonify({
-            'status': 'error',
-            'error': error_msg,
-        }), 500
+            for token in qa_service.stream_answer_tokens(processed_query,formatted_chunks, conversation_history):
+                yield f"data: {json.dumps({'token': token})}\n\n"
+            
+            yield f"data: {json.dumps({'event': 'end'})}\n\n"
+
+            #update conversation history
+            conversation_manager.add_message(user_id, 'user', query)
+            conversation_manager.add_message(user_id, "assistant", "(stream answer)")
+        
+        except Exception as e:
+            yield f"data: {json.dumps({'event': 'error', 'error':str(e)})}\n\n"
+        
+    return Response(stream_with_context(generate()), mimetype='text/event-stream')
 
 
 @api.route('/conversation', methods=['POST'])

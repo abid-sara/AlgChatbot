@@ -29,3 +29,6 @@ class GeminiLLM(BaseLLM):
             Response object with text attribute
         """
         return self.model.generate_content(prompt)
+    
+    def stream_content(self, prompt):
+        return self.model.generate_content(prompt, stream=True)
