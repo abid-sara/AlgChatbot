@@ -1,5 +1,5 @@
 arabic_latin_words = {
-  "Moohtarif": "محترف",
+  "Moohtarif": "محترف ع ",
   "Lablabee": "لبلابي",
   "IDOOM": ["ايدوم", "ادوم"],
   "Fibre": "فيبر",
