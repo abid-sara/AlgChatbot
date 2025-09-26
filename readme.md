@@ -57,8 +57,8 @@ Then, install the required dependencies:
 pip install -r requirements.txt
 ```
 
+Start the backend server
 ```bash
-# Start the backend server
 python run.py
 ```
 
