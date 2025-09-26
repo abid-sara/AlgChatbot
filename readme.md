@@ -32,11 +32,32 @@ AlgChatbot/
 ## How to Run
 
 ### Backend
-
 ```bash
 cd backend
-# Python dependencies
+```
+
+It is recommended to use a virtual environment to manage dependencies.
+
+### Create and activate a virtual environment
+
+For **Windows**:
+```sh
+python -m venv venv
+venv\Scripts\activate
+```
+
+For **macOS/Linux**:
+```sh
+python3 -m venv venv
+source venv/bin/activate
+```
+
+Then, install the required dependencies:
+```sh
 pip install -r requirements.txt
+```
+
+```bash
 # Start the backend server
 python run.py
 ```
