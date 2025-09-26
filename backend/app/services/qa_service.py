@@ -1,4 +1,5 @@
 from app.services.llm.factory import create_llm
+from app.utils.translation import arabic_latin_words
 
 class QAService:
     def __init__(self):
@@ -194,22 +195,41 @@ Context from official Algeria Telecom documents:
 
 Instructions for your response:
 1. Respond in the same language as the question (Arabic, French, or English) don't use any other language.
-2. Provide clear, concise, and easy-to-understand answers.
-3. Use a courteous and professional customer service tone.
-4. If the user asks about a specific service (e.g., E-facture, Idoom ADSL, Fibre), only quote points present in the documents.
-5. If no direct answer is available, say: "This information is not available in the documentation."
-6. If the question is a continuation, ensure consistency with previous messages.
-7. Always return the final answer as **Markdown**, well formatted with:
-  - Headings (###)
-  - Bullet lists (- or *)
-  - Bold for important terms
-  - Tables when listing structured data (plans, prices, comparisons)
-8. Do NOT use inline stars `*` for bullets. Use proper Markdown syntax.
-9. Links must be valid Markdown links: [text](url).
-10. Do NOT start your response with phrases like "Yes, I will answer your question based on the documentation."
-11. Do not mention document numbers or file names in the answer example don't write: MY IDOOM: A mobile application from Algérie Télécom available on Google Play, App Store, and Huawei AppGallery, integrating several services ([Document 14]) write only the phrase MY IDOOM: A mobile application from Algérie Télécom available on Google Play, App Store, and Huawei AppGallery, integrating several services.
+2. **For Arabic responses specifically:**
+   - Use proper right-to-left (RTL) text formatting
+   - Ensure consistent Arabic typography throughout
+   - Maintain proper Arabic punctuation (، instead of , and ؟ instead of ?)
+   - Keep Arabic text properly aligned and structured
+3. Provide clear, concise, and easy-to-understand answers.
+4. Use a courteous and professional customer service tone.
+5. If the user asks about a specific service (e.g., E-facture, Idoom ADSL, Fibre), only quote points present in the documents.
+6. If no direct answer is available, say: "This information is not available in the documentation."
+7. If the question is a continuation, ensure consistency with previous messages.
+8. Always return the final answer as **well-formatted Markdown** with:
+   - Headings using ### (for Arabic: ### العنوان)
+   - Bullet lists using - or * (maintain consistent spacing)
+   - **Bold** for important terms (Arabic: **النص المهم**)
+   - Tables when listing structured data (plans, prices, comparisons)
+   - Proper line breaks and spacing for readability
+9. **Formatting requirements:**
+   - Do NOT use inline stars `*` for bullets. Use proper Markdown syntax.
+   - Links must be valid Markdown links: [text](url)
+   - For Arabic text, ensure proper spacing between Arabic and Latin text
+   - Maintain consistent indentation for nested lists
+10. Do NOT start your response with meta-phrases like "Yes, I will answer your question based on the documentation."
+11. Do not mention document numbers or file names in the answer (example: write "MY IDOOM: A mobile application from Algérie Télécom" instead of "MY IDOOM: A mobile application from Algérie Télécom ([Document 14])")
 12. Provide the answer directly, without unnecessary introductions or meta-comments.
+13. Avoid repetition (don't write "Idoom ADSL\\nIdoom ADSL")
+14. **Arabic-Latin service mapping:** If the user mentions an Arabic service/offer name, map it to its Latin equivalent using this dictionary:
 
+{arabic_latin_words}
+
+Note: Only translate service/offer names, not regular Arabic words used in normal sentences.
+
+15. **Text direction and structure:**
+    - For mixed Arabic-Latin content, ensure proper bidirectional text handling
+    - Keep service names and technical terms in their original Latin form even within Arabic responses
+    - Maintain consistent paragraph structure and spacing
 
 Answer:
 """

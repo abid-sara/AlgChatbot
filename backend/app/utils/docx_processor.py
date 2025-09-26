@@ -40,6 +40,27 @@ class DocxProcessor:
 
         return new_path
 
+    def extract_table_text(self, doc):
+        tables_text = []
+        for table in doc.tables:
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells)
+                if row_text.strip():
+                    tables_text.append(row_text)
+        return tables_text
+
+    def iter_block_items(self, parent):
+        from docx.oxml import CT_P, CT_Tbl
+        from docx.text.paragraph import Paragraph
+        from docx.table import Table
+
+        for child in parent.element.body:
+            if isinstance(child, CT_P):
+                yield Paragraph(child, parent)
+            elif isinstance(child, CT_Tbl):
+                yield Table(child, parent)
+
+
     def chunk_faq(self, doc_path, file_title):
         doc = Document(doc_path)
         chunks = []
@@ -47,27 +68,40 @@ class DocxProcessor:
         current_qa = []
         in_question = False
 
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if not text:
-                continue
+        def process_table(table):
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells)
+                if row_text.strip():
+                    if in_question:
+                        current_qa.append(row_text)
+                    else:
+                        intro.append(row_text)
 
-            if text.endswith("?") or text.endswith("؟"):
-                if intro:
-                    chunks.append(f"{file_title}: {' '.join(intro)}")
-                    intro = []
+        for block in self.iter_block_items(doc):
+            if block.__class__.__name__ == "Paragraph":
+                text = block.text.strip()
+                if not text:
+                    continue
 
-                if current_qa:
-                    chunks.append(f"{file_title}: {' '.join(current_qa)}")
-                    current_qa = []
+                if text.endswith("?") or text.endswith("؟"):
+                    if intro:
+                        chunks.append(f"{file_title}: {' '.join(intro)}")
+                        intro = []
 
-                current_qa.append(text + "\n")
-                in_question = True
-            else:
-                if in_question:
-                    current_qa.append(text)
+                    if current_qa:
+                        chunks.append(f"{file_title}: {' '.join(current_qa)}")
+                        current_qa = []
+
+                    current_qa.append(text + "\n")
+                    in_question = True
                 else:
-                    intro.append(text)
+                    if in_question:
+                        current_qa.append(text)
+                    else:
+                        intro.append(text)
+
+            elif block.__class__.__name__ == "Table":
+                process_table(block)
 
         if current_qa:
             chunks.append(f"{file_title}: {' '.join(current_qa)}")
@@ -131,39 +165,49 @@ class DocxProcessor:
 
             return (False, 0)
 
-        for para in doc.paragraphs:
-            text = para.text.strip()
-            if not text:
-                continue
-            
-            # If line is "Tarifs", absorb the rest into one chunk
-            if absorb_rest:
-                buffer.append(text)
-                continue
-            
-            # Check if this is a "Tarifs" section
-            if is_tarifs_title(text):
-                if buffer:
-                    chunks.append(f"{file_title}: {' '.join(buffer).strip()}")
-                buffer = [text]
-                absorb_rest = True 
-                continue
-            
-            is_heading, level = get_heading_level(text, para)
+        def process_table(table):
+            for row in table.rows:
+                row_text = " | ".join(cell.text.strip() for cell in row.cells)
+                if row_text.strip():
+                    buffer.append(row_text)
 
-            if is_heading:
-                if not last_was_heading and buffer:  
-                    chunks.append(f"{file_title}: {' '.join(buffer).strip()}")
-                    buffer = []
-                buffer.append(text)
-                last_was_heading = True
-            else:
-                if last_was_heading and buffer: 
+        for block in self.iter_block_items(doc):
+            if block.__class__.__name__ == "Paragraph":
+                text = block.text.strip()
+                if not text:
+                    continue
+            
+                # If line is "Tarifs", absorb the rest into one chunk
+                if absorb_rest:
                     buffer.append(text)
-                else:
+                    continue
+            
+                # Check if this is a "Tarifs" section
+                if is_tarifs_title(text):
+                    if buffer:
+                        chunks.append(f"{file_title}: {' '.join(buffer).strip()}")
+                    buffer = [text]
+                    absorb_rest = True 
+                    continue
                 
+                is_heading, level = get_heading_level(text, block)
+
+                if is_heading:
+                    if not last_was_heading and buffer:  
+                        chunks.append(f"{file_title}: {' '.join(buffer).strip()}")
+                        buffer = []
                     buffer.append(text)
-                last_was_heading = False
+                    last_was_heading = True
+                else:
+                    if last_was_heading and buffer: 
+                        buffer.append(text)
+                    else:
+                    
+                        buffer.append(text)
+                    last_was_heading = False
+        
+            elif block.__class__.__name__ == "Table":
+                process_table(block)
 
         if buffer:
             chunks.append(f"{file_title}: {' '.join(buffer).strip()}")
