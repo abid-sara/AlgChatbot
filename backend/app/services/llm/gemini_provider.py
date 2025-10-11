@@ -3,8 +3,9 @@
 import google.generativeai as genai
 from config.settings import GEMINI_API_KEY, GEMINI_MODEL_NAME, TEMPERATURE, MAX_TOKENS
 from app.services.llm.base import BaseLLM
+from langchain_core.runnables import Runnable
 
-class GeminiLLM(BaseLLM):
+class GeminiLLM(BaseLLM, Runnable):
     """Google Gemini LLM implementation"""
     
     def __init__(self):
@@ -32,3 +33,18 @@ class GeminiLLM(BaseLLM):
     
     def stream_content(self, prompt):
         return self.model.generate_content(prompt, stream=True)
+    
+
+    # runnable interface 
+    def invoke(self, input, config=None):
+        """
+        GeminiLLM compatible with LangChain's Runnable interface.
+        To use with the agent
+        """
+        if isinstance(input, dict):
+            prompt = input.get("input", "")
+        else:
+            prompt = str(input)
+
+        response = self.model.generate_content(prompt)
+        return response.text

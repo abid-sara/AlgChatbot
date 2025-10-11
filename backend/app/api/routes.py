@@ -6,7 +6,7 @@ import time
 from app.services.search_service import SearchService
 from app.services.qa_service import QAService
 from app.utils.conversation_manager import ConversationManager
-
+from app.services.action_agent.controller import ActionAgentController
 from config.settings import (
     EMBEDDING_MODEL, TFIDF_WEIGHT, BM25_WEIGHT, EMBEDDING_WEIGHT,
     DEFAULT_SEARCH_METHOD, TOP_N_RESULTS, DATA_PATH
@@ -28,6 +28,7 @@ search_service = SearchService(
 
 qa_service = QAService()
 conversation_manager = ConversationManager()
+agent = ActionAgentController()
 
 # Blueprint
 api = Blueprint('api', __name__)
@@ -193,3 +194,40 @@ def clear_conversation(user_id):
     """
     conversation_manager.clear_conversation(user_id)
     return jsonify({'status': 'success', 'message': 'Conversation cleared'}), 200
+
+
+@api.route('agent-action', methods = ['POST'])
+def agent_action():
+    "API to test the action agent"
+
+    data = request.json
+    user_id = data.get("user_id", "default")
+    query = data.get("query")
+
+    if not data or 'query' not in data:
+        return Response(
+            json.dumps({'error': 'Query is required'}, ensure_ascii=False),
+            content_type="application/json; charset=utf-8",
+            status=400
+        )
+
+
+    try:
+        result = agent.handle_action(query, user_id)
+        history = agent.conversation_manager.get_conversation(user_id)
+
+        return Response(
+            json.dumps({
+                "user_id": user_id,
+                "response": result,
+                "conversation_history": history
+            }, ensure_ascii=False),
+            content_type="application/json; charset=utf-8",
+            status=200
+        )
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+    
+
+    

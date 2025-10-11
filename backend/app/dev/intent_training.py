@@ -38,7 +38,11 @@ if __name__ == "__main__":
        "What is the exact process for migrating from ADSL to VDSL technology?",
        "Signaler un problème de qualité d'appel sur ma ligne Idoom Fixe 500 DA",
        "ما هي عروض الحزم الأمنية الإلكترونية للشركات الصغيرة؟ ثم قم بحجز موعد لتدقيق أمني",
-       "Je souhaite connaître les délais d'intervention pour un dérangement fibre"
+       "Je souhaite connaître les délais d'intervention pour un dérangement fibre",
+       "اعطيني اخر فاتورة",
+       "اعطيني اخر فاتورة ديالي",
+       "اعطيني اخر فكتور ديالي"
+       
     ]
     
     for query in test_queries:
